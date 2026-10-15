@@ -24,6 +24,15 @@
 
 ## 搭建流程
 
+```mermaid
+flowchart TD
+    A[Windows: VS Code 编辑] --> B[烧录工具: STM32CubeProgrammer]
+    B --> C[Ubuntu 虚拟机 + 网络/共享目录]
+    C --> D[Docker 编译容器: 环境变量/权限]
+    D --> E[hb 构建 → mkimage.stm32 镜像]
+    E --> F[写入开发板 → 液晶屏启动 OHOS]
+```
+
 ```
 1. Windows 侧      VS Code 安装配置（代码编辑与工程浏览）
         ↓
@@ -48,6 +57,48 @@
 
 > 体会：Linux 环境下的**规范性**和**细节严谨性**是决定成败的关键——
 > 绝大多数"玄学报错"最后都是路径、权限、环境变量三件事。
+
+## 环境自检脚本（scripts/verify_env.sh）
+
+搭环境前先跑一遍，确认工具链齐全。把下面内容存为 `scripts/verify_env.sh` 并 `chmod +x`：
+
+```bash
+#!/usr/bin/env bash
+# OpenHarmony 编译/烧录环境自检
+check() { command -v "$1" >/dev/null 2>&1 && echo "  [OK]      $1" || echo "  [MISSING] $1"; }
+echo "== OpenHarmony 环境自检 =="
+check docker
+check repo
+check python3
+check hb
+check gcc-arm-none-eabi
+check java
+check STM32_Programmer_CLI
+```
+
+## 可复现编译环境（Dockerfile）
+
+把编译环境固化成镜像，避免"在我机器上能编"的问题。下面是参考模板，
+**首次使用需自行拉取 OpenHarmony 源码与对应工具链**（体积大，不进镜像）：
+
+```dockerfile
+FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    git curl python3 python3-pip repo gnupg flex bison \
+    gcc-arm-none-eabi openjdk-17-jdk make zip unzip \
+ && rm -rf /var/lib/apt/lists/*
+RUN pip3 install --upgrade pip setuptools requests
+WORKDIR /opt/ohos
+# 自行挂载源码： docker run -v $PWD/ohos:/opt/ohos/src ...
+CMD ["/bin/bash"]
+```
+
+构建与进入：
+```bash
+docker build -t ohos-build .
+docker run -it -v "$PWD/src":/opt/ohos/src ohos-build
+```
 
 ## 面试怎么讲
 
